@@ -82,6 +82,7 @@ Represents information about **staff members** in the hotel.
   "address": "123 Main Street",
   "salary": 30000
 }
+```
 
 ### Usage
 - **Install Dependencies  (npm install)**
