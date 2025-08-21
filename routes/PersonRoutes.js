@@ -1,79 +1,148 @@
-const express = require("express");
+
+const express = require('express');
 const router = express.Router();
-const Person = require("../models/person");
+const Person = require('./../models/person');
+const {jwtAuthMiddleware, generateToken} = require('./../jwt');
 
-router.post("/", async (req, res) => {
-  try {
-    const Persondata = req.body;
-    const newPerson = new Person(Persondata);
-    const savedPerson = await newPerson.save();
-    console.log("Person's data is saved");
-    res.status(200).json(savedPerson);
-  } catch (err) {
-    console.log(err);
-    res.status(500).json({ error: "Internal server error" });
-  }
-});
-
-router.get("/", async (req, res) => {
-  try {
-    const Persondata = await Person.find();
-    console.log("Person's data is fetched");
-    res.status(200).json(Persondata);
-  } catch (err) {
-    console.log(err);
-    res.status(500).json({ error: "Internal server error" });
-  }
-});
-
-router.get("/:workType", async (req, res) => {
-  try {
-    const workType = req.params.workType;
-    if (workType == "chef" || workType == "waiter" || workType == "manager") {
-      const response = await Person.find({ work: workType });
-      console.log("Work type found");
-      res.status(200).json(response);
-    } else {
-      res.status(404).json({ error: "Invalid work type" });
-    }
-  } catch (err) {
-    console.log(err);
-    res.status(500).json({ error: "Internal server error" });
-  }
-});
-
-router.put('/:id', async(req,res)=>{
+// POST route to add a person
+router.post('/signup', async (req, res) =>{
     try{
-        const personId = req.params.id;
-        const updatedperson = req.body;
-        const response = await Person.findByIdAndUpdate(personId,updatedperson,{
-            new:true,
-            runValidators:true
-        });
-        if(!response){
-            console.log("Person not found");
-            res.status(404).json({error:'Person not found'});
+        const data = req.body // Assuming the request body contains the person data
+
+        // Create a new Person document using the Mongoose model
+        const newPerson = new Person(data);
+
+        // Save the new person to the database
+        const response = await newPerson.save();
+        console.log('data saved');
+
+        const payload = {
+            id: response.id,
+            username: response.username
         }
-        console.log("Person record updated");
+        console.log(JSON.stringify(payload));
+        const token = generateToken(payload);
+        console.log("Token is : ", token);
+
+        res.status(200).json({response: response, token: token});
+    }
+    catch(err){
+        console.log(err);
+        res.status(500).json({error: 'Internal Server Error'});
+    }
+})
+
+// Login Route
+router.post('/login', async(req, res) => {
+    try{
+        // Extract username and password from request body
+        const {username, password} = req.body;
+
+        // Find the user by username
+        const user = await Person.findOne({username: username});
+
+        // If user does not exist or password does not match, return error
+        if( !user || !(await user.comparePassword(password))){
+            return res.status(401).json({error: 'Invalid username or password'});
+        }
+
+        // generate Token 
+        const payload = {
+            id: user.id,
+            username: user.username
+        }
+        const token = generateToken(payload);
+
+        // resturn token as response
+        res.json({token})
+    }catch(err){
+        console.error(err);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
+
+// Profile route
+router.get('/profile', jwtAuthMiddleware, async (req, res) => {
+    try{
+        const userData = req.user;
+        console.log("User Data: ", userData);
+
+        const userId = userData.id;
+        const user = await Person.findById(userId);
+
+        res.status(200).json({user});
+    }catch(err){
+        console.error(err);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+})
+
+// GET method to get the person
+router.get('/', jwtAuthMiddleware, async (req, res) =>{
+    try{
+        const data = await Person.find();
+        console.log('data fetched');
+        res.status(200).json(data);
+    }catch(err){
+        console.log(err);
+        res.status(500).json({error: 'Internal Server Error'});
+    }
+})
+
+router.get('/:workType', async(req, res)=>{
+    try{
+        const workType = req.params.workType; // // Extract the work type from the URL parameter
+        if(workType == 'chef' || workType == 'manager' || workType == 'waiter' ){
+            const response = await Person.find({work: workType});
+            console.log('response fetched');
+            res.status(200).json(response);
+        }else{
+            res.status(404).json({error: 'Invalid work type'});
+        }
+    }catch(err){
+        console.log(err);
+        res.status(500).json({error: 'Internal Server Error'});
+    }
+})
+
+router.put('/:id', async (req, res)=>{
+    try{
+        const personId = req.params.id; // Extract the id from the URL parameter
+        const updatedPersonData = req.body; // Updated data for the person
+
+        const response = await Person.findByIdAndUpdate(personId, updatedPersonData, {
+            new: true, // Return the updated document
+            runValidators: true, // Run Mongoose validation
+        })
+
+        if (!response) {
+            return res.status(404).json({ error: 'Person not found' });
+        }
+
+        console.log('data updated');
         res.status(200).json(response);
     }catch(err){
         console.log(err);
-        res.status(500).json({error:'Internal server error'});
+        res.status(500).json({error: 'Internal Server Error'});
     }
 })
 
-router.delete('/:id', async(req,res)=>{
+router.delete('/:id', async (req, res) => {
     try{
-       const personId = req.params.id;
-       const response= await Person.findByIdAndDelete(personId);
-       if(!response){
-        res.status(404).json({error:'Person not found'});
-       }
-       console.log("Person record is deleted successfully");
-       res.status(200).json({message:"Person record deleted"});
+        const personId = req.params.id; // Extract the person's ID from the URL parameter
+        
+        // Assuming you have a Person model
+        const response = await Person.findByIdAndRemove(personId);
+        if (!response) {
+            return res.status(404).json({ error: 'Person not found' });
+        }
+        console.log('data delete');
+        res.status(200).json({message: 'person Deleted Successfully'});
     }catch(err){
-       console.log(err);
-       res.status(500).json({error:'Internal server error'});
+        console.log(err);
+        res.status(500).json({error: 'Internal Server Error'});
     }
 })
+
+
 module.exports = router;

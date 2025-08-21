@@ -13,7 +13,7 @@ var MenuItemRoutes = require('./routes/MenuItemRoutes.js');
 
 app.use(passport.initialize());
 const userAuthentication = passport.authenticate('local', {session:false});
-app.use('/person',userAuthentication,PersonRoutes);
+app.use('/person',PersonRoutes);
 app.use('/menuItems',MenuItemRoutes);
 
 app.get("/", (req, res) => {
