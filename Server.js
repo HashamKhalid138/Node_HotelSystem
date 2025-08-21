@@ -2,6 +2,7 @@ var express = require("express");
 var app = express();
 var db = require("./db.js");
 require('dotenv').config();
+const passport = require('./auth.js');
 
 var bodyparser = require("body-parser");
 app.use(bodyparser.json());
@@ -10,7 +11,9 @@ const Port=process.env.PORT || 3000;
 var PersonRoutes = require('./routes/PersonRoutes.js');
 var MenuItemRoutes = require('./routes/MenuItemRoutes.js');
 
-app.use('/person',PersonRoutes);
+app.use(passport.initialize());
+const userAuthentication = passport.authenticate('local', {session:false});
+app.use('/person',userAuthentication,PersonRoutes);
 app.use('/menuItems',MenuItemRoutes);
 
 app.get("/", (req, res) => {
